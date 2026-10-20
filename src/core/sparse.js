@@ -3,7 +3,7 @@
 // minimum-degree ordering on the node graph -> symbolic fill -> right-looking block Cholesky.
 const B = 6, BB = 36;
 
-function chol6(A) {
+function chol6(A) { // in-place lower Cholesky of a 6x6 row-major block; returns false if not SPD
   for (let j = 0; j < B; j++) {
     let d = A[j * B + j];
     for (let k = 0; k < j; k++) d -= A[j * B + k] * A[j * B + k];
@@ -17,7 +17,7 @@ function chol6(A) {
     for (let k = j + 1; k < B; k++) A[j * B + k] = 0;
   }
 }
-// X = Bm * L^-T
+// X = Bm * L^-T  (solve X L^T = Bm row by row: L x = row^T)
 function trsmRight(L, Bm, X) {
   for (let r = 0; r < B; r++) {
     for (let i = 0; i < B; i++) {
@@ -42,9 +42,10 @@ function bwd(L, b, o) { for (let i = B - 1; i >= 0; i--) { let s = b[o + i]; for
 export function solveBlockSPD(n, diag, off, rhs) {
   const adj = Array.from({ length: n }, () => new Set());
   for (const k of off.keys()) { const c = k.indexOf(','); const i = +k.slice(0, c), j = +k.slice(c + 1); adj[i].add(j); adj[j].add(i); }
-  // minimum degree ordering + symbolic factorisation (neighbour set at elimination = column pattern)
+  // --- minimum degree ordering + symbolic factorisation (neighbour set at elimination = column pattern)
   const pos = new Int32Array(n).fill(-1), order = new Int32Array(n), pattern = new Array(n);
   const alive = new Uint8Array(n).fill(1);
+  // bucketed degrees for speed
   for (let step = 0; step < n; step++) {
     let best = -1, bd = 1e9;
     for (let v = 0; v < n; v++) if (alive[v]) { const d = adj[v].size; if (d < bd) { bd = d; best = v; if (d <= 1) break; } }
@@ -57,7 +58,7 @@ export function solveBlockSPD(n, diag, off, rhs) {
     }
     adj[v].clear();
   }
-  // numeric factorisation, right-looking. W[col] : Map(row -> block)
+  // --- numeric factorisation, right-looking. W[col] : Map(row -> block)  (rows eliminated after col)
   const W = Array.from({ length: n }, () => new Map());
   const D = diag.map((d) => Float64Array.from(d));
   for (const [k, blk] of off) {
@@ -92,7 +93,7 @@ export function solveBlockSPD(n, diag, off, rhs) {
     }
     W[v] = null;
   }
-  // solve L y = b, L^T x = y
+  // --- solve L y = b, L^T x = y
   const x = Float64Array.from(rhs);
   const tmp = new Float64Array(B);
   for (let step = 0; step < n; step++) {

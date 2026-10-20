@@ -59,11 +59,12 @@ function clip(faces, n, d, nb, eps) {
 }
 
 export function polyArea(pts, n) {
-  let cx = 0, cy = 0, cz = 0, at = 0;
+  let ax = 0, ay = 0, az = 0, cx = 0, cy = 0, cz = 0, at = 0;
   const p0 = pts[0];
   for (let i = 1; i + 1 < pts.length; i++) {
     const c = cross(sub(pts[i], p0), sub(pts[i + 1], p0));
     const ar = 0.5 * Math.abs(dot(c, n));
+    ax += c[0]; ay += c[1]; az += c[2];
     cx += ar * (p0[0] + pts[i][0] + pts[i + 1][0]) / 3; cy += ar * (p0[1] + pts[i][1] + pts[i + 1][1]) / 3; cz += ar * (p0[2] + pts[i][2] + pts[i + 1][2]) / 3;
     at += ar;
   }
@@ -80,7 +81,7 @@ function cellProps(faces) {
     const P = f.pts;
     for (let i = 1; i + 1 < P.length; i++) {
       const a = sub(P[0], r), b = sub(P[i], r), c = sub(P[i + 1], r);
-      const v = dot(a, cross(b, c)) / 6;
+      const v6 = dot(a, cross(b, c)); const v = v6 / 6;
       vol += v;
       cx += v * (r[0] * 4 + a[0] + b[0] + c[0]) / 4; cy += v * (r[1] * 4 + a[1] + b[1] + c[1]) / 4; cz += v * (r[2] * 4 + a[2] + b[2] + c[2]) / 4;
     }
@@ -126,7 +127,7 @@ export function fractureBox(size, seeds) {
 // long members (columns/beams) get slices, blocks get a 3D scatter.
 export function makeSeeds(size, count, rng) {
   const dims = [0, 1, 2].sort((a, b) => size[a] - size[b]);
-  const [t, m, L] = dims;
+  const [t, m, L] = dims; // thin, mid, long axes
   const h = [size[0] / 2, size[1] / 2, size[2] / 2];
   const seeds = [];
   if (count <= 1) return [[0, 0, 0]];
