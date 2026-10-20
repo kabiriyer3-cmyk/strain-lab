@@ -1,2 +1,98 @@
-# strain-lab
-THE FINALS-style destruction sandbox: pre-fractured buildings, Strain structural solver (sparse Cholesky), gradual destruction, debris physics. three.js + Rapier, GitHub Pages.
+# STRAIN LAB
+
+Песочница разрушений по мотивам **THE FINALS**, собранная заново для браузера: заранее расколотые здания, структурный расчёт Strain, gradual destruction (шарниры и провисание), физика обломков, кучи щебня и взрывные волны.
+
+**Играть:** https://kabiriyer3-cmyk.github.io/strain-lab/ (после включения Pages, см. ниже)
+
+## Как устроено разрушение в THE FINALS
+
+Коротко, по открытым источникам (список внизу):
+
+- **Всё раскалывается заранее.** Здания собираются в Houdini (тулсет Building Creator) из модулей, каждый модуль заранее режется на фрагменты. В рантайме ничего не режется, только отсоединяется. Соседние выпуклые оболочки сливаются, чтобы коллизий было меньше.
+- **Граф связей.** Фрагменты соединены связями, части, стоящие на земле, служат опорами. Связи генерирует инструмент прямо в уровне (connection tool), здания делятся на strain groups.
+- **Strain.** Слой структурной целостности: граф рассчитывается как конструкция под собственным весом, решатель прямой разреженный (Холецкий). Связь рвётся, когда сочетание осевой силы, сдвига и изгиба выходит за порог в форме ромба (с небольшим случайным сдвигом, чтобы здания ломались неодинаково). Работа размазывается по кадрам, всё считается на сервере.
+- **Физика.** Оторванные куски становятся твёрдыми телами (PhysX), бьют по окружению и ломаются дальше.
+- **Сеть.** Состояние реплицируется снапшотами и дельтами, на GDC называли снижение примерно с 400 до 175 кбит/с.
+- **PRIME TIME (12.0.0, 20.10.2026)** добавил между Strain и физикой третий слой, **gradual destruction**: после разрыва куски не падают сразу, а держатся на подвижных связях, поэтому полы встают рампой, коридоры скручиваются, комнаты провисают. Ещё в патче: подвесные конструкции на физических тросах, Blast Waves (стены вминаются, обломки разлетаются), растущие кучи обломков, скрип и пыль перед обрушением.
+
+## Что повторено здесь
+
+| THE FINALS | STRAIN LAB | Код |
+|---|---|---|
+| Предразбиение в Houdini | Вороной-разбиение каждого модуля на выпуклые фрагменты при загрузке (фиксированный сид) | `src/core/voronoi.js` |
+| Building Creator: дом из правил | Простенки, подоконники, перемычки, стёкла, плиты, колонны, перегородки, балконы, парапеты | `src/core/scenes.js` |
+| Граф связей и опоры | Связи по общим граням внутри модуля и по перекрытию граней между модулями, фундамент неразрушаем | `src/core/structure.js` |
+| Strain groups | Группа на здание, мосты и фермы опираются на соседние здания как на фундамент | `structure.js` |
+| Strain, разреженный Холецкий | Рама из жёстких узлов с 6 степенями свободы, блочный Холецкий с упорядочиванием по минимальной степени, в Web Worker | `src/core/strain.js`, `sparse.js`, `src/sim/strain.worker.js` |
+| Ромб порога + случайный сдвиг | U = осевая + сдвиг + изгиб, порог 1 ± 0.12 | `strain.js` |
+| Скрип и пыль перед обрушением | Разрыв с задержкой, скрип, пыль с потолка | `src/sim/sim.js`, `src/game/audio.js` |
+| Gradual destruction | Пластичные связи после разрыва становятся шарнирами (шаровыми или петлевыми) с усталостью, вес висящего куска возвращается в Strain | `sim.js` |
+| Swinging suspended structures | Джамботрон на двух тросах под стальной фермой | `scenes.js`, `sim.js` |
+| Blast Waves | Вмятины по внешнему кольцу взрыва, импульс обломкам, детонация баллонов | `sim.js` |
+| Физика обломков | Rapier: составные тела трескаются от ударов и наносят урон статике | `sim.js` |
+| Debris piles | Осевшая мелочь превращается в карту высот щебня с коллизией | `src/sim/piles.js` |
+| Слияние коллизий | Целый модуль сталкивается как один бокс, при повреждении распадается на оболочки фрагментов | `sim.js` |
+| Репликация | Оценка трафика: квантование и дельты на тике 30 Гц, видна в HUD | `sim.js` |
+
+## Калибровка
+
+Прочности игровые, а не СНиП: здание должно пережить одну ракету, но сложиться, когда опоры почти выбиты. Бетон: растяжение 2600, сжатие 6000, сдвиг 2200 кН/м²; кирпич держит сдвиг 950, дерево 620. Ненесущие элементы мягче несущих (подоконник 0.5, перегородка 0.05, парапет 0.3, стекло 0.01), чтобы они висели на каркасе, а не тянули нагрузку на себя.
+
+Проверено на сценах: в покое всё стоит (это же проверяет CI), четыре RPG в фасад обрушивают переднюю часть, а без опор первого этажа здание складывается целиком.
+
+## Управление
+
+| Клавиша | Действие |
+|---|---|
+| WASD, мышь | ход и обзор (стрелки, если мышь не захвачена) |
+| ЛКМ / ПКМ или F | огонь / подрыв C4 |
+| 1–8, колесо | оружие: RPG-7, кувалда, C4, граната, AKM, Charge'N'Slam, метеор, шар-таран |
+| Space, Shift | прыжок (двойной), бег |
+| V | полёт (Space и C: вверх и вниз) |
+| B | вид: обычный, нагрузка Strain, фрагменты, узлы, группы |
+| G | граф Strain: связи, опоры, шарниры |
+| T, P | слоумо, пауза физики |
+| R, M, H | сброс арены, звук, подсказка |
+
+Параметры адреса: `?scene=district|lab|house`, `?quality=low`, `?worker=0` (Strain в основном потоке).
+
+## Запуск локально
+
+```bash
+npm install
+npm test         # Strain: все сцены стоят в покое
+npm run build    # dist/: index.html + game.js, three.js и Rapier (WASM) уже внутри
+```
+
+`dist/index.html` открывается прямо с диска, сервер не нужен. Для разработки: `npm run dev` (http://localhost:5173).
+
+## Деплой
+
+Workflow **Build & deploy** (`.github/workflows/pages.yml`) на каждый пуш в `main`: установка, тесты, сборка, артефакт `strain-lab-web` (zip с готовой игрой, работает офлайн) и выкладка на GitHub Pages.
+
+Один раз: **Settings → Pages → Build and deployment → Source: GitHub Actions**, затем **Actions → Build & deploy → Re-run all jobs**.
+
+## Структура
+
+```
+src/core/    геометрия и Strain: voronoi, structure, strain, sparse, strainRun, materials, scenes
+src/sim/     рантайм разрушения: sim (слои, урон, шарниры), piles, strainService, strain.worker
+src/render/  view (чанки, обломки, режимы, граф), fx (пыль, огонь, искры, щебень)
+src/game/    player, weapons, hud, audio
+public/      страница и стили
+tests/       тесты ядра (node --test)
+```
+
+## Источники
+
+- Måns Isaksson (Embark Studios), «Engineering Mayhem: Technical Deep-Dive into Environmental Destruction in THE FINALS», GDC 2024: [запись](https://www.gdcvault.com/play/1034280/Engineering-Mayhem-Technical-Deep-Dive), [слайды](https://media.gdcvault.com/gdc2024/Slides/GDC+slide+presentations/Isaksson_Mans_Engineering+Mayham+Technical.pdf)
+- Adrian Björkerud, [«Making the Procedural Buildings of THE FINALS»](https://www.sidefx.com/community/making-the-procedural-buildings-of-the-finals-using-houdini/), SideFX, 2026
+- Elliot Forslund, [«Optimising 3D object destruction tools…»](https://www.diva-portal.org/smash/record.jsf?pid=diva2%3A1776335), BTH, 2023
+- [THE FINALS 12.0.0 PRIME TIME, патчноут](https://www.reachthefinals.com/patchnotes/12-00) и видео [DYNAMISM UPGRADE](https://www.youtube.com/watch?v=Zm9sF-ijcB4)
+- Digital Foundry, [The Finals on PC: tech analysis](https://www.digitalfoundry.net/articles/digitalfoundry-2024-the-finals-pc-optimised-settings-tech-analysis)
+
+## Дисклеймер
+
+Фанатский технический эксперимент, не связан с Embark Studios. THE FINALS принадлежит Embark Studios. Код Embark здесь не используется: всё написано заново по публичным докладам и патчноутам, числа подобраны на глаз.
+
+Лицензия: MIT.

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STRAIN LAB — разрушение THE FINALS в браузере</title>
+<meta name="description" content="Песочница разрушений по мотивам THE FINALS: Strain, gradual destruction, обломки и кучи щебня.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="menu">
+  <div class="panel">
+    <div class="kicker"><span class="live">LIVE</span>ПО МОТИВАМ THE FINALS</div>
+    <h1>STRAIN<span>LAB</span></h1>
+    <p class="sub">Разрушение THE FINALS, пересобранное в браузере: заранее расколотые здания, расчёт нагрузок, шарниры и обломки.</p>
+    <div class="layers">
+      <div><b>STRAIN</b><span>связи и опоры, разреженный Холецкий в отдельном потоке</span></div>
+      <div><b>GRADUAL</b><span>после разрыва куски висят на шарнирах, провисают и качаются</span></div>
+      <div><b>PHYSICS</b><span>обломки трескаются от ударов, бьют по зданию, копятся в кучи</span></div>
+    </div>
+    <div id="scenes"></div>
+    <div class="row">
+      <button id="play">В АРЕНУ</button>
+      <div class="q"><span>графика</span><button data-quality="high">ВЫСОКАЯ</button><button data-quality="low">НИЗКАЯ</button></div>
+    </div>
+    <div class="keys"><b>WASD</b> ход <b>мышь</b> обзор <b>ЛКМ</b> огонь <b>ПКМ/F</b> подрыв C4 <b>1–8</b> оружие <b>Space</b> прыжок ×2 <b>Shift</b> бег <b>V</b> полёт <b>B</b> вид <b>G</b> граф <b>T</b> слоумо <b>P</b> пауза <b>R</b> сброс <b>M</b> звук</div>
+  </div>
+  <div id="status">загрузка…</div>
+</div>
+<div id="help">
+  <h2>Как читать арену</h2>
+  <p><b>B</b> переключает вид: нагрузка Strain (синий → жёлтый → красный), фрагменты, узлы Strain, группы.</p>
+  <p><b>G</b> показывает граф: линии — связи между узлами, красные точки — опоры на неразрушаемый фундамент, оранжевые — шарниры gradual destruction.</p>
+  <p>Ромб справа — запас прочности связи под прицелом: белый ромб — предел, точка — текущая нагрузка.</p>
+  <p>Снесите опоры первого этажа, и Strain начнёт рвать перегруженные связи: здание скрипит, сыплет пылью с потолков и складывается.</p>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
