@@ -12,23 +12,25 @@ import { StrainService } from './strainService.js';
 import { Piles } from './piles.js';
 
 export const DT = 1 / 60;
-const G_STATIC = 0x0001, G_DEBRIS = 0x0002, G_PLAYER = 0x0004, G_PROP = 0x0008, G_SMALL = 0x0010;
+const G_STATIC = 0x0001, G_DEBRIS = 0x0002, G_PLAYER = 0x0004, G_PROP = 0x0008, G_SMALL = 0x0010, G_RAMP = 0x0020;
 const groups = (member, filter) => ((member & 0xffff) << 16) | (filter & 0xffff);
 export const GROUPS = {
   static: groups(G_STATIC, 0xffff),
   debris: groups(G_DEBRIS, 0xffff),
   small: groups(G_SMALL, G_STATIC | G_DEBRIS | G_SMALL | G_PROP),
   prop: groups(G_PROP, 0xffff),
-  player: groups(G_PLAYER, G_STATIC | G_DEBRIS | G_PROP),
+  player: groups(G_PLAYER, G_STATIC | G_DEBRIS | G_PROP | G_RAMP),
+  ramp: groups(G_RAMP, G_PLAYER),                                  // invisible stair ramps: only the player walks on them
+  query: groups(G_STATIC | G_DEBRIS | G_PROP | G_SMALL, 0xffff & ~G_RAMP), // rays (bullets, projectiles) ignore ramps
 };
-const MAX_BODIES = 520;
 
 export class Sim {
   constructor(R, sceneKey, opts = {}) {
     this.R = R;
     this.sceneKey = sceneKey;
     this.def = SCENES[sceneKey].build();
-    this.st = new Structure(this.def, opts.seed ?? 1337);
+    this.st = new Structure(this.def, opts.seed ?? 1337, { fracScale: opts.fracScale ?? 1 });
+    this.maxBodies = opts.maxBodies ?? 520;
     this.rng = mulberry32(99);
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = DT;
@@ -48,6 +50,7 @@ export class Sim {
     this.stats = { solves: 0, solveMs: 0, lastSolveMs: 0, nnz: 0, breaks: 0, detached: 0, impacts: 0, netNaive: 0, netComp: 0, maxU: 0 };
     this.net = { prev: new Map(), naive: 0, comp: 0, acc: 0 };
     this._buildWorld();
+    this._buildRamps();
     this.piles = new Piles(R, this.world, this.def.bounds);
     this._buildProps();
     this._buildRopes();
@@ -60,6 +63,11 @@ export class Sim {
     const R = this.R, W = this.world;
     const ground = W.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
     this.groundCollider = W.createCollider(R.ColliderDesc.cuboid(400, 1, 400).setFriction(0.9).setCollisionGroups(GROUPS.static), ground);
+    const city = W.createRigidBody(R.RigidBodyDesc.fixed());
+    for (const b of this.def.skyline || []) {
+      const h = [(b.max[0] - b.min[0]) / 2, (b.max[1] - b.min[1]) / 2, (b.max[2] - b.min[2]) / 2];
+      W.createCollider(R.ColliderDesc.cuboid(h[0], h[1], h[2]).setTranslation(b.min[0] + h[0], b.min[1] + h[1], b.min[2] + h[2]).setFriction(0.9).setCollisionGroups(GROUPS.static), city);
+    }
     // An intact module collides as ONE box; it is swapped for per-fragment hulls the moment it is damaged
     // (SideFX: Embark merges adjacent convex hulls of a fractured asset wherever the profile allows).
     for (const m of this.st.modules) {
@@ -71,6 +79,27 @@ export class Sim {
       const col = W.createCollider(cd, rb);
       if (m.fixed) { const sid = m.shards[0]; this.st.shards[sid].collider = col; this.colShard.set(col.handle, sid); }
       else { m.col = col; this.colShard.set(col.handle, -1 - m.id); }
+    }
+  }
+  _buildRamps() {
+    const R = this.R;
+    this.ramps = (this.def.ramps || []).map((r) => {
+      const dx = r.b[0] - r.a[0], dy = r.b[1] - r.a[1], L = Math.hypot(dx, dy);
+      const sx = dx < 0 ? -1 : 1, ang = Math.atan2(dy * sx, dx * sx); // keep the box's local +y pointing up
+      const nx = -Math.sin(ang), ny = Math.cos(ang), hy = 0.1;
+      const cx = (r.a[0] + r.b[0]) / 2 - nx * hy, cy = (r.a[1] + r.b[1]) / 2 - ny * hy, cz = (r.z[0] + r.z[1]) / 2;
+      const body = this.world.createRigidBody(R.RigidBodyDesc.fixed());
+      const col = this.world.createCollider(R.ColliderDesc.cuboid(L / 2, hy, (r.z[1] - r.z[0]) / 2).setTranslation(cx, cy, cz)
+        .setRotation({ x: 0, y: 0, z: Math.sin(ang / 2), w: Math.cos(ang / 2) }).setFriction(0.9).setCollisionGroups(GROUPS.ramp), body);
+      return { ...r, body, col, alive: true };
+    });
+  }
+  _checkRamps() {
+    for (const r of this.ramps) {
+      if (!r.alive) continue;
+      if (r.mods.some((mid) => this.st.modules[mid].shards.some((sid) => this.st.shards[sid].state !== STATIC))) {
+        r.alive = false; this.world.removeRigidBody(r.body); r.body = r.col = null;
+      }
     }
   }
   _hull(s) { const cd = this.R.ColliderDesc.convexHull(s.hull); return cd || this.R.ColliderDesc.ball(Math.max(0.04, s.r * 0.55)); }
@@ -335,7 +364,7 @@ export class Sim {
     this.strain.shardState(s.id, DEAD);
     for (const bid of s.bonds) { const b = this.st.bonds[bid]; if (!b.broken) { b.broken = true; this.strain.bondBroken(bid); } }
     this._touchAtts(s.id);
-    this.events.push({ type: 'dust', p: pos, size: Math.cbrt(s.vol), glass: s.glass, color: s.def.core, cause });
+    this.events.push({ type: 'dust', p: pos, size: Math.cbrt(s.vol), glass: s.glass, color: s.def.core, mat: s.mat, cause });
   }
 
   // ------------------------------------------------------------------ gradual destruction: loose attachments
@@ -550,7 +579,7 @@ export class Sim {
       else if (s.dmg > 0.45 * s.hp && s.def.duct > 0.3 && d > R * 0.4) dent.push(s);
     }
     eject.sort((a, b) => a[1] - b[1]);
-    const room = Math.max(0, MAX_BODIES - this.bodies.size);
+    const room = Math.max(0, this.maxBodies - this.bodies.size);
     const maxEject = Math.min(o.maxEject ?? 30, room);
     for (let i = maxEject; i < eject.length; i++) kill.push(eject[i][0]);
     for (const s of kill) this.killShard(s, o.kind || 'blast');
@@ -641,7 +670,7 @@ export class Sim {
       if (s.dmg >= s.hp) hit.push(s);
     }
     for (const s of hit) {
-      if (s.vol < 0.03 || s.glass || this.bodies.size > MAX_BODIES) this.killShard(s, 'smash');
+      if (s.vol < 0.03 || s.glass || this.bodies.size > this.maxBodies) this.killShard(s, 'smash');
       else this.createBody([s.id], { v: [dir[0] * 5 + (this.rng() - 0.5) * 2, dir[1] * 5 + 1, dir[2] * 5 + (this.rng() - 0.5) * 2], w: [(this.rng() - 0.5) * 6, (this.rng() - 0.5) * 6, (this.rng() - 0.5) * 6], ccd: true });
     }
     for (const rec of [...this.bodies.values()]) {
@@ -658,7 +687,7 @@ export class Sim {
 
   raycast(o, d, maxDist = 300, exclude = null) {
     const R = this.R;
-    const hit = this.world.castRayAndGetNormal(new R.Ray({ x: o[0], y: o[1], z: o[2] }, { x: d[0], y: d[1], z: d[2] }), maxDist, true, undefined, undefined, exclude || undefined);
+    const hit = this.world.castRayAndGetNormal(new R.Ray({ x: o[0], y: o[1], z: o[2] }, { x: d[0], y: d[1], z: d[2] }), maxDist, true, undefined, GROUPS.query, exclude || undefined);
     if (!hit) return null;
     const p = [o[0] + d[0] * hit.toi, o[1] + d[1] * hit.toi, o[2] + d[2] * hit.toi];
     const n = [hit.normal.x, hit.normal.y, hit.normal.z];
@@ -801,7 +830,7 @@ export class Sim {
     s.dmg += d; this.strain.shardDmg(s.id, s.dmg);
     for (const bid of s.bonds) { const b = this.st.bonds[bid]; if (b.broken) continue; const o = this.st.shards[b.a === s.id ? b.b : b.a]; if (o.state === STATIC && !o.fixed) { o.dmg += d * 0.3; this.strain.shardDmg(o.id, o.dmg); if (o.dmg >= o.hp) this.killShard(o, 'impact'); } }
     if (s.dmg >= s.hp) {
-      if (s.vol > 0.05 && this.bodies.size < MAX_BODIES) this.createBody([s.id], { v: [0, -1.5, 0] });
+      if (s.vol > 0.05 && this.bodies.size < this.maxBodies) this.createBody([s.id], { v: [0, -1.5, 0] });
       else this.killShard(s, 'impact');
     }
     if (d > 0.12) this.strain.markDirty(s.region);
@@ -830,6 +859,7 @@ export class Sim {
     this._impacts(dt);
     for (const rec of [...this.bodies.values()]) if (rec.split && this.bodies.has(rec.id)) this._split(rec);
     this._updateAtts(dt);
+    if (this.tick % 12 === 0) this._checkRamps();
     this._lifecycle(dt);
     this.piles.update(this.time);
     this._net(dt);
@@ -837,7 +867,7 @@ export class Sim {
   }
 
   _lifecycle(dt) {
-    const over = this.bodies.size - MAX_BODIES;
+    const over = this.bodies.size - this.maxBodies;
     let culled = 0;
     for (const rec of [...this.bodies.values()]) {
       rec.age += dt;
