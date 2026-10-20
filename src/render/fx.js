@@ -62,12 +62,13 @@ class PointPool {
 }
 
 export class FX {
-  constructor(scene, piles) {
-    this.scene = scene; this.piles = piles;
-    this.soft = new PointPool(scene, 4500, THREE.NormalBlending);
-    this.glow = new PointPool(scene, 1800, THREE.AdditiveBlending);
+  constructor(scene, piles, opts = {}) {
+    this.scene = scene; this.piles = piles; this.lite = !!opts.lite; this.hdr = opts.hdr ?? 1;
+    const k = this.lite ? 0.5 : 1;
+    this.soft = new PointPool(scene, Math.round(4500 * k), THREE.NormalBlending);
+    this.glow = new PointPool(scene, Math.round(1800 * k), THREE.AdditiveBlending);
     // rubble bits
-    this.maxBits = 900;
+    this.maxBits = Math.round(900 * k);
     const bg = new THREE.IcosahedronGeometry(0.09, 0); bg.scale(1, 0.7, 1.2);
     this.bits = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ roughness: 0.9 }), this.maxBits);
     this.bits.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.bits.count = 0; this.bits.castShadow = false; this.bits.frustumCulled = false;
@@ -77,6 +78,26 @@ export class FX {
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.e = new THREE.Euler(); this.sv = new THREE.Vector3();
     this.cTmp = new THREE.Color();
     this.camPos = new THREE.Vector3();
+    // shock fronts (camera-facing flash ring + ground ring) and scorch decals on the ground
+    this.ringGeo = new THREE.RingGeometry(0.82, 1, 48);
+    this.rings = [];
+    this.decals = []; this.decalMat = opts.scorch ? new THREE.MeshBasicMaterial({ map: opts.scorch, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, color: 0xffffff }) : null;
+    this.decalGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  }
+  shockwave(p, R, groundY = null) {
+    const mk = (flat) => {
+      const m = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: flat ? 0xd9cdb8 : 0xfff3d6, transparent: true, opacity: flat ? 0.45 : 0.7, depthWrite: false, side: THREE.DoubleSide, blending: flat ? THREE.NormalBlending : THREE.AdditiveBlending, fog: true }));
+      m.renderOrder = 7; m.frustumCulled = false; this.scene.add(m); return m;
+    };
+    this.rings.push({ m: mk(false), p: p.slice(), t: 0, life: 0.22, r0: R * 0.25, r1: R * 2.1, flat: false });
+    if (groundY !== null && p[1] - groundY < R) this.rings.push({ m: mk(true), p: [p[0], groundY + 0.05, p[2]], t: 0, life: 0.6, r0: R * 0.4, r1: R * 3.2, flat: true });
+  }
+  decal(p, size, normal) {
+    if (!this.decalMat || (normal && normal[1] < 0.75)) return;
+    let d = this.decals.length >= (this.lite ? 10 : 24) ? this.decals.shift() : null;
+    if (!d) { d = new THREE.Mesh(this.decalGeo, this.decalMat); d.renderOrder = 1; d.receiveShadow = true; this.scene.add(d); }
+    d.position.set(p[0], p[1] + 0.01, p[2]); d.rotation.y = Math.random() * 6.28; d.scale.setScalar(size * (0.85 + Math.random() * 0.3));
+    this.decals.push(d);
   }
   setScale(h) { this.soft.mat.uniforms.scale.value = h * 0.9; this.glow.mat.uniforms.scale.value = h * 0.9; }
   rnd(a = 1) { return (Math.random() * 2 - 1) * a; }
@@ -94,7 +115,8 @@ export class FX {
   }
   explosion(p, R, kind) {
     const big = R / 3;
-    const flash = new THREE.Color(0xfff2c4), fire = new THREE.Color(0xff8a2a), fire2 = new THREE.Color(0xffc24d), smoke = new THREE.Color(0x4a4744), dust = new THREE.Color(0xb7ad9e);
+    const H = this.hdr;
+    const flash = new THREE.Color(0xfff2c4).multiplyScalar(Math.max(1, H * 0.7)), fire = new THREE.Color(0xff8a2a).multiplyScalar(H), fire2 = new THREE.Color(0xffc24d).multiplyScalar(H), smoke = new THREE.Color(0x4a4744), dust = new THREE.Color(0xb7ad9e);
     this.glow.spawn(p, [0, 0, 0], flash, 1, 14 * big, 0.16, 30 * big, 0, 0);
     for (let i = 0; i < 22 * big; i++) this.glow.spawn([p[0] + this.rnd(0.6), p[1] + this.rnd(0.6), p[2] + this.rnd(0.6)], [this.rnd(6 * big), Math.random() * 5 * big, this.rnd(6 * big)], Math.random() < 0.5 ? fire : fire2, 0.9, 2 + Math.random() * 2.5 * big, 0.35 + Math.random() * 0.35, 3, 3.5, -1);
     for (let i = 0; i < 40 * big; i++) { const sp = 9 + Math.random() * 16; const d = [this.rnd(1), Math.random() * 0.9, this.rnd(1)]; const l = Math.hypot(...d) || 1; this.glow.spawn(p, [d[0] / l * sp, d[1] / l * sp, d[2] / l * sp], fire2, 1, 0.25 + Math.random() * 0.25, 0.4 + Math.random() * 0.5, -0.2, 1.2, 9); }
@@ -131,6 +153,14 @@ export class FX {
     B.length = n; this.bits.count = n;
     this.bits.instanceMatrix.needsUpdate = true; if (this.bits.instanceColor) this.bits.instanceColor.needsUpdate = true;
     for (const L of this.lights) { L.t += dt; L.l.intensity = L.t < 0.6 ? (L.peak || 0) * Math.exp(-L.t * 7) : 0; }
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const r = this.rings[i]; r.t += dt; const k = r.t / r.life;
+      if (k >= 1) { this.scene.remove(r.m); r.m.material.dispose(); this.rings.splice(i, 1); continue; }
+      const e = 1 - (1 - k) * (1 - k), rad = r.r0 + (r.r1 - r.r0) * e;
+      r.m.position.set(r.p[0], r.p[1], r.p[2]); r.m.scale.setScalar(rad);
+      if (r.flat) r.m.rotation.set(-Math.PI / 2, 0, 0); else if (cam) r.m.quaternion.copy(cam.quaternion);
+      r.m.material.opacity = (r.flat ? 0.45 : 0.7) * (1 - k) * (1 - k);
+    }
     this.shake *= Math.exp(-dt * 6);
   }
 }
