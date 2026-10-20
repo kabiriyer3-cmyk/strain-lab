@@ -1,0 +1,18 @@
+{
+  "name": "strain-lab",
+  "version": "1.0.0",
+  "description": "THE FINALS-style destruction sandbox: pre-fractured buildings, Strain structural solver, gradual destruction, debris physics.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --dev && npx --yes http-server dist -p 5173 -c-1",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "@dimforge/rapier3d-compat": "0.12.0",
+    "esbuild": "0.27.2",
+    "three": "0.185.1"
+  },
+  "license": "MIT"
+}
