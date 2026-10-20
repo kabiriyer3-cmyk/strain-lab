@@ -1,5 +1,5 @@
 // Material table. Strengths are game-tuned (kN/m^2), not textbook values: the goal is THE FINALS feel,
-// where a building survives a few RPGs but folds when its supports are mostly gone.
+// where a building survives one RPG but folds when its supports are mostly gone.
 //  E, G      relative stiffness (only ratios matter for how load is shared)
 //  sigT/C    tension / compression strength, tau = shear strength
 //  duct      ductility -> how strong the loose "gradual destruction" attachment is after a break (0 = snaps clean)

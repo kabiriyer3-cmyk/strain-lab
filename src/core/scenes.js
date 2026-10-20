@@ -13,7 +13,7 @@ function builder(M) {
 // side colour arrays are ordered [-x, +x, -y, +y, -z, +z]
 function sideColors(axis, outwardSign, facade, inner) {
   const c = [inner, inner, inner, inner, inner, inner];
-  const i = axis === 'x' ? 0 : 4;
+  const i = axis === 'x' ? 0 : 4; // axis of the wall normal: x walls face +-x, z walls face +-z
   c[i + (outwardSign > 0 ? 1 : 0)] = facade;
   return c;
 }
@@ -89,6 +89,7 @@ export function makeBuilding(M, o) {
       for (let i = 0; i < bx; i++) {
         if (i === skip) continue;
         const xa = i === 0 ? tw : i * bay + 0.2, xb = i === bx - 1 ? W - tw : (i + 1) * bay - 0.2;
+        if (o.columns === false) { /* walls end at each other */ }
         // non-load-bearing: a 2 cm gap under the slab, so partitions never prop the floor above
         add(P(xa, y0, zc - 0.1), P(xb, yt - 0.02, zc + 0.1), o.partitionMat ?? 'brick', 'partition', PLASTER, tag(s));
       }

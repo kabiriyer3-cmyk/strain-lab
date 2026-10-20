@@ -3,8 +3,7 @@
 import { buildRegionGraph, solveIsland } from './strain.js';
 
 export function solveRegion(st, region, epoch) {
-  const now = () => (typeof performance !== 'undefined' ? performance : Date).now();
-  const t0 = now();
+  const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
   const g = buildRegionGraph(st, region);
   let maxU = 0, nnz = 0;
   for (const I of g.islands) if (I.anchored) { maxU = Math.max(maxU, solveIsland(g, I)); nnz += I.nnz || 0; }
@@ -26,7 +25,7 @@ export function solveRegion(st, region, epoch) {
   const R = st.regions[region];
   const shardNode = new Int32Array(R.shards.length).fill(-1);
   R.shards.forEach((sid, i) => { const v = g.nodeOf.get(sid); if (v !== undefined) shardNode[i] = v; });
-  const ms = now() - t0;
+  const ms = (typeof performance !== 'undefined' ? performance : Date).now() - t0;
   return { type: 'result', region, epoch, detached: Int32Array.from(g.detached), breaks, ms, maxU, nnz, nodes: n, conns: m,
     viz: { nodeCom, nodeU, connA, connB, connP, connU, connThr, connAx, connSh, connBe, connMa, connMb, shardNode } };
 }
