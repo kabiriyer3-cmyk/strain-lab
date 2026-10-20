@@ -1,12 +1,13 @@
 // The destruction graph: pre-fractured fragments ("destruction bones") + bonds between touching fragments.
 // Bonds inside a module come from shared Voronoi faces, bonds between modules from overlapping faces on
-// the shared plane (the in-level "connection tool" step of THE FINALS pipeline).
+// the shared plane (that is the in-level "connection tool" step of THE FINALS pipeline).
 import { fractureBox, makeSeeds } from './voronoi.js';
 import { mulberry32 } from './rng.js';
 import { matOf } from './materials.js';
 
 export const STATIC = 0, DYNAMIC = 1, DEAD = 2;
 
+function polyArea2(P) { let a = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; }
 function clip2(subject, clipPoly) {
   let out = subject;
   for (let i = 0; i < clipPoly.length && out.length; i++) {
@@ -35,6 +36,11 @@ function moments2(P) { // area, centroid, second moments about centroid, half ex
   const sg = a < 0 ? -1 : 1; a *= sg; ixx *= sg; iyy *= sg; ixy *= sg;
   let hu = 0, hw = 0; for (const [x, y] of P) { hu = Math.max(hu, Math.abs(x - cx)); hw = Math.max(hw, Math.abs(y - cy)); }
   return { a, cx, cy, Suu: iyy - a * cx * cx, Sww: ixx - a * cy * cy, Suw: ixy - a * cx * cy, hu, hw };
+}
+function centroid2(P) {
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; const c = p[0] * q[1] - q[0] * p[1]; a += c; cx += (p[0] + q[0]) * c; cy += (p[1] + q[1]) * c; }
+  a /= 2; return a !== 0 ? [cx / (6 * a), cy / (6 * a), a] : [P[0][0], P[0][1], 0];
 }
 
 export class Structure {
@@ -68,6 +74,7 @@ export class Structure {
         const id = this.shards.length;
         seedToShard.set(cell.seed, id);
         const c = [m.center[0] + cell.c[0], m.center[1] + cell.c[1], m.center[2] + cell.c[2]];
+        // triangles in shard-local space
         let ntri = 0; for (const f of cell.faces) ntri += f.pts.length - 2;
         const tri = new Float32Array(ntri * 9), triN = new Float32Array(ntri * 3), triSide = new Int8Array(ntri);
         const uniq = [];
@@ -143,6 +150,7 @@ export class Structure {
     const out = [];
     for (const sid of mod.shards) {
       const s = this.shards[sid];
+      // collect polygon of triangles on that side (convex cell -> one face per side)
       const pts = [];
       for (let t = 0; t < s.triSide.length; t++) if (s.triSide[t] === side) for (let k = 0; k < 3; k++) pts.push([s.tri[t * 9 + k * 3] + s.c[0], s.tri[t * 9 + k * 3 + 1] + s.c[1], s.tri[t * 9 + k * 3 + 2] + s.c[2]]);
       if (pts.length >= 3) out.push({ sid, pts });
@@ -154,6 +162,7 @@ export class Structure {
     const fa = this._facesOnSide(lo, ax * 2 + 1), fb = this._facesOnSide(hi, ax * 2);
     const plane = lo.max[ax];
     const to2 = (pts) => {
+      // convex hull of projected points (triangle fan vertices of one convex face)
       const P = pts.map((p) => [p[u], p[w]]);
       P.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
       const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);

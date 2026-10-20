@@ -60,12 +60,12 @@ export function buildRegionGraph(st, region) {
     const key = A * 100003 + Bn;
     let c = cmap.get(key);
     if (!c) {
-      c = { id: conns.length, a: A, b: Bn, ax: b.ax, sg, bonds: [], area: 0, p: [0, 0, 0], ma: st.modules[st.shards[A === na ? b.a : b.b].mod].id, mb: Bn === -1 ? -1 : st.modules[st.shards[A === na ? b.b : b.a].mod].id, U: 0 };
+      c = { id: conns.length, a: A, b: Bn, ax: b.ax, sg, bonds: [], area: 0, p: [0, 0, 0], S: [0, 0, 0], ma: st.modules[st.shards[A === na ? b.a : b.b].mod].id, mb: Bn === -1 ? -1 : st.modules[st.shards[A === na ? b.b : b.a].mod].id, U: 0 };
       cmap.set(key, c); conns.push(c);
     }
     const h = Math.min(st.health(sa), st.health(sb));
     const ar = b.area * h;
-    c.bonds.push(bid); c.area += ar;
+    c.bonds.push(bid); c.area += ar; c.hsum = (c.hsum || 0);
     c.p[0] += ar * b.p[0]; c.p[1] += ar * b.p[1]; c.p[2] += ar * b.p[2];
   }
   for (const c of conns) {
@@ -95,7 +95,7 @@ export function buildRegionGraph(st, region) {
       h2 = Math.max(h2, Math.abs(d[0] * e2[0] + d[1] * e2[1] + d[2] * e2[2]) + Math.abs(e1w) * b.hu + Math.abs(e1u) * b.hw);
     }
     const n = [0, 0, 0]; n[c.ax] = c.sg;
-    c.n = n; c.e1 = e1; c.e2 = e2; c.I1 = l2; c.I2 = l1; c.J = l1 + l2; c.h1 = h1; c.h2 = h2;
+    c.n = n; c.e1 = e1; c.e2 = e2; c.I1 = l2; c.I2 = l1; c.J = l1 + l2; c.h1 = h1; c.h2 = h2; // I1: about e1 (small), I2: about e2
     const MA = st.modules[c.ma], MB = c.mb >= 0 ? st.modules[c.mb] : MA;
     const ma = MA.def, mb = MB.def;
     const fa = KIND_STIFF[MA.kind] ?? 1, fb = c.mb >= 0 ? KIND_STIFF[MB.kind] ?? 1 : fa;
@@ -143,6 +143,7 @@ export function buildRegionGraph(st, region) {
 
 function skew(r) { return [0, -r[2], r[1], r[2], 0, -r[0], -r[1], r[0], 0]; }
 function m3mul(A, B) { const C = new Array(9); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]; return C; }
+// world-frame 3x3 from local diag(k0,k1,k2) in frame [n,e1,e2]
 function frameK(n, e1, e2, k0, k1, k2) {
   const K = new Array(9);
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) K[i * 3 + j] = k0 * n[i] * n[j] + k1 * e1[i] * e1[j] + k2 * e2[i] * e2[j];
@@ -191,6 +192,7 @@ export function solveIsland(graph, island) {
       const rb = [c.p[0] - cb[0], c.p[1] - cb[1], c.p[2] - cb[2]]; c.rb = rb;
       const Sb = skew(rb), ib = loc.get(c.b);
       addGDG(diag[ib], Sb, Sb, KL, KA, 1);
+      // block (row ia, col ib) = -Ga^T D Gb ; store as lower (i>j)
       const blk = new Float64Array(36); addGDG(blk, Sa, Sb, KL, KA, -1);
       if (ia > ib) { const k = ia + ',' + ib; const e = off.get(k); if (e) for (let q = 0; q < 36; q++) e[q] += blk[q]; else off.set(k, blk); }
       else { const t = new Float64Array(36); for (let r = 0; r < 6; r++) for (let q = 0; q < 6; q++) t[q * 6 + r] = blk[r * 6 + q]; const k = ib + ',' + ia; const e = off.get(k); if (e) for (let q = 0; q < 36; q++) e[q] += t[q]; else off.set(k, t); }
@@ -215,7 +217,7 @@ export function solveIsland(graph, island) {
       d = [db[0] - da[0], db[1] - da[1], db[2] - da[2]]; ph = [thb[0] - tha[0], thb[1] - tha[1], thb[2] - tha[2]];
     }
     const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    const N = c.kn * dot(d, c.n);
+    const N = c.kn * dot(d, c.n);                      // + tension, - compression (kN)
     const V = c.ks * Math.hypot(dot(d, c.e1), dot(d, c.e2));
     const T = Math.abs(c.kt * dot(ph, c.n));
     const M1 = c.kb1 * dot(ph, c.e1), M2 = c.kb2 * dot(ph, c.e2);
