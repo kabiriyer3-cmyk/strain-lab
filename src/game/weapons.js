@@ -2,14 +2,14 @@
 import * as THREE from 'three';
 
 export const WEAPONS = [
-  { id: 'rpg', name: 'RPG-7', tag: 'HEAVY', cd: 1.1, hint: 'ракета · радиус 3 м' },
-  { id: 'sledge', name: 'КУВАЛДА', tag: 'HEAVY', cd: 0.62, hint: 'ближний бой · пробивает стены' },
-  { id: 'c4', name: 'C4', tag: 'HEAVY', cd: 0.45, hint: 'липкий заряд · ПКМ — подрыв' },
-  { id: 'frag', name: 'ГРАНАТА', tag: 'ALL', cd: 0.85, hint: 'отскакивает · 2.2 с' },
-  { id: 'akm', name: 'AKM', tag: 'MEDIUM', cd: 0.085, auto: true, hint: 'стекло, дерево, баллоны' },
-  { id: 'cns', name: "CHARGE'N'SLAM", tag: 'HEAVY', cd: 2.4, hint: 'таран сквозь стены' },
-  { id: 'meteor', name: 'МЕТЕОР', tag: 'EVENT', cd: 1.4, hint: 'удар с неба в точку прицела' },
-  { id: 'ball', name: 'ШАР-ТАРАН', tag: 'SANDBOX', cd: 0.9, hint: '57 т стали · урон от удара' },
+  { id: 'rpg', name: 'RPG-7', short: 'RPG', tag: 'HEAVY', cd: 1.1, hint: 'ракета · радиус 3 м' },
+  { id: 'sledge', name: 'КУВАЛДА', short: 'МОЛОТ', tag: 'HEAVY', cd: 0.62, hint: 'ближний бой · пробивает стены' },
+  { id: 'c4', name: 'C4', short: 'C4', tag: 'HEAVY', cd: 0.45, hint: 'липкий заряд · ПКМ — подрыв' },
+  { id: 'frag', name: 'ГРАНАТА', short: 'ГРАН', tag: 'ALL', cd: 0.85, hint: 'отскакивает · 2.2 с' },
+  { id: 'akm', name: 'AKM', short: 'AKM', tag: 'MEDIUM', cd: 0.085, auto: true, hint: 'стекло, дерево, баллоны' },
+  { id: 'cns', name: "CHARGE'N'SLAM", short: 'ТАРАН', tag: 'HEAVY', cd: 2.4, hint: 'таран сквозь стены' },
+  { id: 'meteor', name: 'МЕТЕОР', short: 'МЕТЕОР', tag: 'EVENT', cd: 1.4, hint: 'удар с неба в точку прицела' },
+  { id: 'ball', name: 'ШАР-ТАРАН', short: 'ШАР', tag: 'SANDBOX', cd: 0.9, hint: '57 т стали · урон от удара' },
 ];
 
 function vm(id) {
@@ -44,7 +44,7 @@ export class Weapons {
     this.tracerLine.frustumCulled = false; game.view.scene.add(this.tracerLine);
   }
   get current() { return WEAPONS[this.index]; }
-  select(i) { if (i === this.index || i < 0 || i >= WEAPONS.length) return; this.models[this.index].visible = false; this.index = i; this.models[i].visible = true; this.swap = 1; this.cool = Math.max(this.cool, 0.2); }
+  select(i) { if (i === this.index || i < 0 || i >= WEAPONS.length) return; this.models[this.index].visible = false; this.index = i; this.models[i].visible = true; this.swap = 1; this.cool = Math.max(this.cool, 0.2); this.g.audio.equip(); }
   cycle(d) { this.select((this.index + d + WEAPONS.length) % WEAPONS.length); }
   fire() {
     if (this.cool > 0 || this.g.player.charge) return;
@@ -61,11 +61,11 @@ export class Weapons {
         setTimeout(() => {
           const e2 = pl.eyePos(), d2 = pl.forward();
           const h = sim.raycast(e2, d2, 2.9, pl.collider);
-          if (h) { sim.smash(h.p, d2, 0.85, 1.3); g.audio.thud(h.p); g.fx.shake += 0.25; g.fx.dust(h.p, 0.6, 0xb5ab9c, 6); }
+          if (h) { const mat = h.shard >= 0 ? sim.st.shards[h.shard].mat : 'concrete'; sim.smash(h.p, d2, 0.85, 1.3); g.audio.thud(h.p, mat); g.fx.shake += 0.25; g.fx.dust(h.p, 0.6, 0xb5ab9c, 6); }
         }, 120);
         break;
       }
-      case 'c4': { const n = sim.projectiles.filter((p) => p.kind === 'c4').length; if (n >= 4) { g.hud.toast('Максимум 4 заряда C4 — ПКМ для подрыва'); this.cool = 0.3; return; } sim.spawnProjectile('c4', muzzle, [dir[0] * 15 + pl.vel[0], dir[1] * 15 + 2.5, dir[2] * 15 + pl.vel[2]], { fuse: 999, exclude: ex }); g.audio.beep(); break; }
+      case 'c4': { const n = sim.projectiles.filter((p) => p.kind === 'c4').length; if (n >= 4) { g.hud.toast(g.touch ? 'Максимум 4 заряда C4: жми ПОДРЫВ' : 'Максимум 4 заряда C4: ПКМ для подрыва'); this.cool = 0.3; return; } sim.spawnProjectile('c4', muzzle, [dir[0] * 15 + pl.vel[0], dir[1] * 15 + 2.5, dir[2] * 15 + pl.vel[2]], { fuse: 999, exclude: ex }); g.audio.beep(); break; }
       case 'frag': sim.spawnProjectile('grenade', muzzle, [dir[0] * 17 + pl.vel[0], dir[1] * 17 + 3, dir[2] * 17 + pl.vel[2]], { fuse: 2.2, exclude: ex }); break;
       case 'akm': {
         const sp = 0.012; const d = [dir[0] + (Math.random() - 0.5) * sp, dir[1] + (Math.random() - 0.5) * sp, dir[2] + (Math.random() - 0.5) * sp];

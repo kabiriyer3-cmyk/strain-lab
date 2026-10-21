@@ -44,8 +44,9 @@ function centroid2(P) {
 }
 
 export class Structure {
-  constructor(scene, seed = 1337) {
+  constructor(scene, seed = 1337, opts = {}) {
     this.scene = scene;
+    this.fracScale = opts.fracScale ?? 1; // fewer, chunkier fragments on weak devices (Strain sees the same graph)
     this.modules = scene.modules.map((m, i) => ({
       ...m, id: i, shards: [],
       center: [(m.min[0] + m.max[0]) / 2, (m.min[1] + m.max[1]) / 2, (m.min[2] + m.max[2]) / 2],
@@ -66,7 +67,7 @@ export class Structure {
       const rng = mulberry32(seed + m.id * 7919);
       const def = m.def;
       const vol = m.size[0] * m.size[1] * m.size[2];
-      const n = m.fixed ? 1 : Math.max(1, Math.min(def.maxSeeds, Math.round(vol * def.frac)));
+      const n = m.fixed ? 1 : Math.max(1, Math.min(Math.max(2, Math.round(def.maxSeeds * Math.sqrt(this.fracScale))), Math.round(vol * def.frac * this.fracScale)));
       const seeds = makeSeeds(m.size, n, rng);
       const cells = fractureBox(m.size, seeds);
       const seedToShard = new Map();

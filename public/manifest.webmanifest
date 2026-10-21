@@ -1,0 +1,11 @@
+{
+  "name": "STRAIN LAB",
+  "short_name": "STRAIN LAB",
+  "description": "THE FINALS-style destruction sandbox",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0e0f12",
+  "theme_color": "#0e0f12",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

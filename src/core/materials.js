@@ -12,6 +12,7 @@ export const MATERIALS = {
   steel: { label: 'сталь', density: 7850, E: 6.0, G: 2.4, sigT: 9000, sigC: 9000, tau: 5200, duct: 1.0, hp: 2.6, frac: 1.6, maxSeeds: 6, core: 0x55606b, impactRes: 18, bondImpact: 80, bullet: 0 },
   rail: { label: 'ограждение', density: 900, E: 1.5, G: 0.6, sigT: 6000, sigC: 6000, tau: 4000, duct: 1.0, hp: 1.2, frac: 1.2, maxSeeds: 4, core: 0x3a4148, impactRes: 6, bondImpact: 30, bullet: 0 },
   panel: { label: 'панель', density: 700, E: 0.8, G: 0.3, sigT: 2500, sigC: 2500, tau: 1500, duct: 0.7, hp: 0.6, frac: 3, maxSeeds: 14, core: 0x2b2f36, impactRes: 1.6, bondImpact: 6, bullet: 0.05 },
+  crate: { label: 'ящик', density: 170, E: 0.3, G: 0.12, sigT: 700, sigC: 900, tau: 420, duct: 0.2, hp: 0.32, frac: 7, maxSeeds: 8, core: 0xc9965c, impactRes: 1.2, bondImpact: 2.6, bullet: 0.09 },
   glass: { label: 'стекло', density: 2500, E: 0.02, G: 0.01, sigT: 60, sigC: 60, tau: 60, duct: 0, hp: 0.03, frac: 40, maxSeeds: 4, core: 0xbfe6f2, impactRes: 0.05, bondImpact: 0.3, bullet: 1, glass: true },
   base: { label: 'основание', density: 2600, E: 1.0, G: 0.42, sigT: 1e9, sigC: 1e9, tau: 1e9, duct: 0, hp: Infinity, frac: 0, maxSeeds: 1, core: 0x77736b, impactRes: 1e12, bondImpact: 1e12, bullet: 0 },
 };
