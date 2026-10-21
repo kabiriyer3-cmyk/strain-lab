@@ -2,10 +2,15 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>STRAIN LAB — разрушение THE FINALS в браузере</title>
-<meta name="description" content="Песочница разрушений по мотивам THE FINALS: Strain, gradual destruction, обломки и кучи щебня.">
+<meta name="description" content="Песочница разрушений по мотивам THE FINALS: Strain, gradual destruction, обломки и кучи щебня. Работает и на телефоне.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
@@ -13,6 +18,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="vig"></div>
 <div id="hud"></div>
 <div id="menu">
   <div class="panel">
@@ -29,7 +35,9 @@
       <button id="play">В АРЕНУ</button>
       <div class="q"><span>графика</span><button data-quality="high">ВЫСОКАЯ</button><button data-quality="low">НИЗКАЯ</button></div>
     </div>
-    <div class="keys"><b>WASD</b> ход <b>мышь</b> обзор <b>ЛКМ</b> огонь <b>ПКМ/F</b> подрыв C4 <b>1–8</b> оружие <b>Space</b> прыжок ×2 <b>Shift</b> бег <b>V</b> полёт <b>B</b> вид <b>G</b> граф <b>T</b> слоумо <b>P</b> пауза <b>R</b> сброс <b>M</b> звук</div>
+    <div class="keys"><b>WASD</b> ход <b>мышь</b> обзор <b>ЛКМ</b> огонь <b>ПКМ/F</b> подрыв C4 <b>1–8</b> оружие <b>Space</b> прыжок ×2 <b>Shift</b> бег <b>E</b> зиплайн <b>W у лестницы</b> лезть <b>V</b> полёт <b>B</b> вид <b>G</b> граф <b>T</b> слоумо <b>P</b> пауза <b>R</b> сброс <b>M</b> звук</div>
+    <div class="tkeys"><b>левый палец</b> ход, до упора = бег <b>правый</b> обзор <b>ОГОНЬ</b> держи для очереди, води пальцем для прицела <b>ЗИП</b> у троса <b>джойстик вперёд</b> у лестницы <b>тап по слоту</b> оружие</div>
+    <div id="rotate">Поверни телефон горизонтально: так удобнее.</div>
   </div>
   <div id="status">загрузка…</div>
 </div>
