@@ -2,7 +2,7 @@
 // (the threshold envelope from Embark's GDC'24 slides: white diamond = limit, red dot = current load).
 import { WEAPONS } from './weapons.js';
 
-const KIND_RU = { wall: 'стена', sill: 'подоконник', lintel: 'перемычка', slab: 'плита', roof: 'кровля', column: 'колонна', partition: 'перегородка', balcony: 'балкон', rail: 'ограждение', parapet: 'парапет', bridge: 'мост', gantry: 'ферма', beam: 'балка', glass: 'стекло', jumbotron: 'экран', base: 'основание' };
+const KIND_RU = { wall: 'стена', sill: 'подоконник', lintel: 'перемычка', slab: 'плита', roof: 'кровля', column: 'колонна', partition: 'перегородка', balcony: 'балкон', rail: 'ограждение', parapet: 'парапет', bridge: 'мост', gantry: 'ферма', beam: 'балка', glass: 'стекло', jumbotron: 'экран', base: 'основание', stair: 'лестница', barrier: 'блок', lamp: 'фонарь', crate: 'ящик', pavement: 'тротуар', footing: 'основание', cashout: 'кэшаут' };
 export class HUD {
   constructor(root) {
     this.root = root;
@@ -14,17 +14,22 @@ export class HUD {
       <div id="mode"></div>
       <div id="insp"><canvas width="176" height="176"></canvas><div class="it"></div></div>
       <div id="toasts"></div>
-      <div id="rack">${WEAPONS.map((w, i) => `<div class="slot" data-i="${i}"><em>${i + 1}</em><b>${w.name}</b><small>${w.tag}</small></div>`).join('')}</div>
+      <div id="prompt"></div>
+      <div id="rack">${WEAPONS.map((w, i) => `<div class="slot" data-i="${i}"><em>${i + 1}</em><b>${w.name}</b><b class="sh">${w.short}</b><small>${w.tag}</small></div>`).join('')}</div>
       <div id="hint"></div>`;
     this.stats = root.querySelector('#stats'); this.rack = [...root.querySelectorAll('.slot')];
     this.hint = root.querySelector('#hint'); this.toasts = root.querySelector('#toasts'); this.modeEl = root.querySelector('#mode');
     this.insp = root.querySelector('#insp'); this.ictx = this.insp.querySelector('canvas').getContext('2d'); this.itext = this.insp.querySelector('.it');
     this.layers = Object.fromEntries([...root.querySelectorAll('#layers span')].map((e) => [e.dataset.l, e]));
     this.sceneName = root.querySelector('#sceneName');
-    this.lastStats = 0;
+    this.promptEl = root.querySelector('#prompt'); this.promptText = '';
+    this.lastStats = 0; this.touch = false; this.onSelect = null;
+    root.querySelector('#rack').addEventListener('pointerdown', (e) => { const s = e.target.closest('.slot'); if (s && this.onSelect) { e.preventDefault(); this.onSelect(+s.dataset.i); } });
   }
+  setTouch(on) { this.touch = on; this.root.classList.toggle('touch', on); }
+  prompt(text) { if (text === this.promptText) return; this.promptText = text; this.promptEl.textContent = text || ''; this.promptEl.classList.toggle('show', !!text); }
   setScene(t) { this.sceneName.textContent = t; }
-  setWeapon(i, w) { this.rack.forEach((e, k) => e.classList.toggle('on', k === i)); this.hint.innerHTML = `<b>${w.name}</b> · ${w.hint} <span>ЛКМ огонь · ПКМ альт · B вид · G граф · T слоумо · V полёт · R сброс · H помощь</span>`; }
+  setWeapon(i, w) { this.rack.forEach((e, k) => e.classList.toggle('on', k === i)); this.hint.innerHTML = `<b>${w.name}</b> · ${w.hint} <span>ЛКМ огонь · ПКМ альт · E зиплайн · B вид · G граф · T слоумо · V полёт · R сброс · H помощь</span>`; }
   setMode(label, on) { this.modeEl.textContent = label; this.modeEl.classList.toggle('show', on); }
   toast(msg, kind = '') {
     const e = document.createElement('div'); e.className = 'toast ' + kind; e.textContent = msg;
@@ -37,6 +42,10 @@ export class HUD {
     const s = game.sim, st = s.stats;
     let stat = 0, dyn = 0; for (const sh of s.st.shards) { if (sh.state === 0) stat++; else if (sh.state === 1) dyn++; }
     const joints = s.atts.reduce((k, a) => k + (a.active && !a.broken && a.type !== 'rope' ? 1 : 0), 0);
+    if (this.touch) {
+      this.stats.innerHTML = `<div><span>FPS</span><b>${fps.toFixed(0)}</b><span>ФРАГМ.</span><b>${stat}</b></div><div><span>ОБЛОМ.</span><b>${s.bodies.size}</b><span>РАЗР.</span><b>${st.breaks}</b></div>`;
+      return;
+    }
     this.stats.innerHTML = `
       <div><span>FPS</span><b>${fps.toFixed(0)}</b><span>ФИЗИКА</span><b>${game.physMs.toFixed(1)}<i>мс</i></b></div>
       <div><span>STRAIN</span><b>${st.solveMs.toFixed(1)}<i>мс</i></b><span>${s.strain.backend === 'worker' ? 'поток' : 'inline'}</span><b>${st.solves}</b></div>
